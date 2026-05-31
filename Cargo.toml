@@ -1,0 +1,25 @@
+[package]
+name = "dlsm-greenthread"
+description = "用户态协程运行时: 汇编上下文切换、P-Core/C-Core 双池调度"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+dlsm-core.workspace = true
+dlsm-shm.workspace = true
+dlsm-sync.workspace = true
+libc.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+dlsm-testutils.workspace = true
+pretty_assertions.workspace = true
+proptest.workspace = true
