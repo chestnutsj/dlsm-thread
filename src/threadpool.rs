@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread;
 
-use crate::coroutine::{Coroutine, ResumeOutcome};
+use crate::coroutine::{Coroutine, Hint, ResumeOutcome};
 use crate::stack::StackError;
 
 /// 协程默认栈大小（128 KiB）。
@@ -51,11 +51,11 @@ impl PoolInner {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn enqueue<F>(&self, f: F) -> Result<(), StackError>
+    fn enqueue<F>(&self, hint: Hint, f: F) -> Result<(), StackError>
     where
         F: FnOnce() + Send + 'static,
     {
-        let coro = Coroutine::new(DEFAULT_STACK_SIZE, f)?;
+        let coro = Coroutine::new_with_hint(DEFAULT_STACK_SIZE, hint, f)?;
         {
             let mut st = self.lock();
             st.outstanding += 1;
@@ -125,7 +125,18 @@ impl Spawner {
     where
         F: FnOnce() + Send + 'static,
     {
-        self.inner.enqueue(f)
+        self.inner.enqueue(Hint::Normal, f)
+    }
+
+    /// 同 [`Self::spawn`]，但带调度归类 [`Hint`]。
+    ///
+    /// # Errors
+    /// 栈分配失败时返回 [`StackError`]。
+    pub fn spawn_with<F>(&self, hint: Hint, f: F) -> Result<(), StackError>
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        self.inner.enqueue(hint, f)
     }
 }
 
@@ -174,7 +185,18 @@ impl ThreadPool {
     where
         F: FnOnce() + Send + 'static,
     {
-        self.inner.enqueue(f)
+        self.inner.enqueue(Hint::Normal, f)
+    }
+
+    /// 同 [`Self::spawn`]，但带调度归类 [`Hint`]。
+    ///
+    /// # Errors
+    /// 栈分配失败时返回 [`StackError`]。
+    pub fn spawn_with<F>(&self, hint: Hint, f: F) -> Result<(), StackError>
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        self.inner.enqueue(hint, f)
     }
 
     /// 取一个可克隆的派生句柄（供协程内部派生新协程）。

@@ -1,8 +1,17 @@
 //! 上下文切换原语 (`x86_64` System V ABI)。
 //!
-//! 仅保存调用者保留 (callee-saved) 寄存器 + RIP + RSP。XMM/AVX/x87 状态不保存,
-//! 因此调用方有责任不在 yield 边界保留浮点中间值; 实测在 OLTP 路径几乎不影响。
-//! 后续 `full` 模式 (TODO) 可补全 XMM/MXCSR 保存。
+//! 仅保存 callee-saved 寄存器 + RIP + RSP（RBX/RBP/R12–R15/RSP）。
+//!
+//! ## 为何不保存 XMM/SIMD 也对（协作式让出）
+//!
+//! `yield_now` 是一次**函数调用**。按 System V AMD64 ABI：
+//! - **XMM0–15 / YMM 是 caller-saved（易失）**：编译器在调用点已视其为被破坏，会把跨 yield
+//!   存活的 SIMD 值自行 spill 到栈。故即便在向量化循环中途让出，活数据也在栈里，无需 swap 保存。
+//! - **MXCSR / x87 控制字是 callee-saved**：本 swap 不触碰 → 自然保留。
+//!
+//! 因此即便是 SIMD 计算协程，协作式让出下 fast 切换也**不丢数据**（同 Rust 栈式协程库
+//! `corosensei` 的 fast 路径）。完整 `fxsave`（XMM/MXCSR/x87 全保存）只有**抢占式调度**才需要——
+//! 信号在任意指令处打断、被打断代码来不及 spill。本运行时是协作式，暂不需要；引入抢占时再加。
 
 #![cfg(target_arch = "x86_64")]
 

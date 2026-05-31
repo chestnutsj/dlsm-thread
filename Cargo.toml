@@ -1,25 +1,42 @@
+[workspace]
+
 [package]
 name = "dlsm-greenthread"
-description = "用户态协程运行时: 汇编上下文切换、P-Core/C-Core 双池调度"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-authors.workspace = true
-repository.workspace = true
+description = "用户态协程运行时：x86_64 上下文切换、单线程调度器、M:N 线程池、Park 桥接"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
+authors = ["DLSM Authors"]
+repository = "https://github.com/chestnutsj/dlsm-thread"
 
-[lints]
-workspace = true
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+todo = "deny"
+dbg_macro = "deny"
+unimplemented = "deny"
+unwrap_used = "warn"
+expect_used = "warn"
 
 [dependencies]
-dlsm-core.workspace = true
-dlsm-shm.workspace = true
-dlsm-sync.workspace = true
-libc.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
+libc = "0.2"
+thiserror = "1.0"
+dlsm-sync = { git = "https://github.com/chestnutsj/dlsm-sync.git", branch = "master" }
 
 [dev-dependencies]
-dlsm-testutils.workspace = true
-pretty_assertions.workspace = true
-proptest.workspace = true
+dlsm-sync = { git = "https://github.com/chestnutsj/dlsm-sync.git", branch = "master" }
+
+# [patch."https://github.com/chestnutsj/dlsm-sync.git"]
+# dlsm-sync = { path = "../dlsm-sync" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

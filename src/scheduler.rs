@@ -11,7 +11,7 @@ use core::ptr::NonNull;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use crate::coroutine::{Coroutine, ResumeOutcome};
+use crate::coroutine::{Coroutine, Hint, ResumeOutcome};
 use crate::stack::StackError;
 
 /// 协程默认栈大小（128 KiB）。
@@ -79,9 +79,21 @@ impl Scheduler {
         F: FnOnce() -> T + 'static,
         T: 'static,
     {
+        self.spawn_with(Hint::Normal, f)
+    }
+
+    /// 同 [`Self::spawn`]，但带调度归类 [`Hint`]（供未来 worker 放置）。
+    ///
+    /// # Errors
+    /// 栈分配失败时返回 [`StackError`]。
+    pub fn spawn_with<F, T>(&self, hint: Hint, f: F) -> Result<JoinHandle<T>, StackError>
+    where
+        F: FnOnce() -> T + 'static,
+        T: 'static,
+    {
         let slot: Rc<RefCell<Option<T>>> = Rc::new(RefCell::new(None));
         let slot_for_coro = Rc::clone(&slot);
-        let coro = Coroutine::new(DEFAULT_STACK_SIZE, move || {
+        let coro = Coroutine::new_with_hint(DEFAULT_STACK_SIZE, hint, move || {
             let result = f();
             *slot_for_coro.borrow_mut() = Some(result);
         })?;
@@ -120,10 +132,25 @@ where
     F: FnOnce() -> T + 'static,
     T: 'static,
 {
+    spawn_with(Hint::Normal, f)
+}
+
+/// 同 [`spawn`]，但带调度归类 [`Hint`]。
+///
+/// # Errors
+/// 栈分配失败时返回 [`StackError`]。
+///
+/// # Panics
+/// 当前线程没有正在运行的调度器时 panic。
+pub fn spawn_with<F, T>(hint: Hint, f: F) -> Result<JoinHandle<T>, StackError>
+where
+    F: FnOnce() -> T + 'static,
+    T: 'static,
+{
     let Some(sched) = CURRENT_SCHED.with(Cell::get) else {
         panic!("spawn must be called within a running scheduler")
     };
     // SAFETY: 指针由 run_until_idle 设置，指向其栈上 &self；调度器用 RefCell 做内部可变，
     // 此处取得的 &Scheduler 与 run_until_idle 的 &self 均为共享引用，互不冲突。
-    unsafe { sched.as_ref() }.spawn(f)
+    unsafe { sched.as_ref() }.spawn_with(hint, f)
 }

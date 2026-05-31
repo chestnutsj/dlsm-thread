@@ -22,11 +22,11 @@ mod stack;
 mod threadpool;
 
 #[cfg(target_arch = "x86_64")]
-pub use coroutine::{yield_now, Coroutine, ResumeOutcome};
+pub use coroutine::{yield_now, Coroutine, Hint, ResumeOutcome};
 #[cfg(target_arch = "x86_64")]
 pub use park::CoroutinePark;
 #[cfg(target_arch = "x86_64")]
-pub use scheduler::{spawn, JoinHandle, Scheduler};
+pub use scheduler::{spawn, spawn_with, JoinHandle, Scheduler};
 pub use stack::{Stack, StackError};
 #[cfg(target_arch = "x86_64")]
 pub use threadpool::{Spawner, ThreadPool};

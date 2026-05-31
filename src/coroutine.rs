@@ -25,6 +25,19 @@ enum State {
     Done,
 }
 
+/// 协程调度归类，供线程池据此放置（未来：Compute 绑核/分独立池）。
+///
+/// **不影响上下文切换内容**——协作式让出下 fast 切换对 SIMD 计算已正确（见 `context` 模块
+/// 的 ABI 说明）。本枚举仅是调度元数据。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Hint {
+    /// 普通协程：OLTP 行路径等，不使用 SIMD。
+    #[default]
+    Normal,
+    /// 计算协程：OLAP 扫描 / 向量过滤 / 列式解压等，使用 SIMD；未来可绑核或分独立 worker 池。
+    Compute,
+}
+
 /// 协程 inner: 必须堆分配并固定地址 (栈上指针指向 inner 内字段)。
 struct CoroutineInner {
     scheduler_ctx: Context,
@@ -33,6 +46,7 @@ struct CoroutineInner {
     stack: Stack,
     state: State,
     panic_payload: Option<Box<dyn Any + Send + 'static>>,
+    hint: Hint,
 }
 
 /// 一个独立的用户态协程, 拥有自己的栈与寄存器上下文。
@@ -51,11 +65,22 @@ thread_local! {
 }
 
 impl Coroutine {
-    /// 创建一个新协程, 闭包将在首次 `resume` 时开始执行。
+    /// 创建一个新协程（[`Hint::Normal`]），闭包将在首次 `resume` 时开始执行。
     ///
     /// # Errors
     /// 当栈分配失败时返回 [`StackError`]。
     pub fn new<F>(stack_size: usize, f: F) -> Result<Self, StackError>
+    where
+        F: FnOnce() + 'static,
+    {
+        Self::new_with_hint(stack_size, Hint::Normal, f)
+    }
+
+    /// 创建一个带调度归类 [`Hint`] 的协程。
+    ///
+    /// # Errors
+    /// 当栈分配失败时返回 [`StackError`]。
+    pub fn new_with_hint<F>(stack_size: usize, hint: Hint, f: F) -> Result<Self, StackError>
     where
         F: FnOnce() + 'static,
     {
@@ -71,6 +96,7 @@ impl Coroutine {
             stack,
             state: State::Ready,
             panic_payload: None,
+            hint,
         });
 
         // 初始化协程的寄存器上下文:
@@ -83,6 +109,13 @@ impl Coroutine {
         inner.coro_ctx.r12 = closure_ptr;
 
         Ok(Self { inner })
+    }
+
+    /// 协程的调度归类 [`Hint`]。
+    #[inline]
+    #[must_use]
+    pub fn hint(&self) -> Hint {
+        self.inner.hint
     }
 
     /// 推进协程一次。

@@ -6,15 +6,31 @@
 
 use core::ptr::NonNull;
 
-dlsm_core::dlsm_error! {
-    /// 栈分配错误（错误码区段 `20000..=29999`）。消息一律英文。
-    pub enum StackError {
-        /// 请求大小为 0。
-        20001 ZeroSize => "stack size must be non-zero",
-        /// `mmap` 系统调用失败。
-        20002 Mmap(#[source] std::io::Error) => "mmap failed: {0}",
-        /// `mprotect` 系统调用失败 (设置 guard page)。
-        20003 Mprotect(#[source] std::io::Error) => "mprotect failed: {0}",
+use thiserror::Error;
+
+/// 栈分配错误（错误码区段 `20000..=29999`，本 crate 自带，独立于其它 crate）。消息一律英文。
+#[derive(Debug, Error)]
+pub enum StackError {
+    /// 请求大小为 0。
+    #[error("stack size must be non-zero")]
+    ZeroSize,
+    /// `mmap` 系统调用失败。
+    #[error("mmap failed: {0}")]
+    Mmap(#[source] std::io::Error),
+    /// `mprotect` 系统调用失败 (设置 guard page)。
+    #[error("mprotect failed: {0}")]
+    Mprotect(#[source] std::io::Error),
+}
+
+impl StackError {
+    /// 稳定数字错误码（区段 `20000..=29999`）。
+    #[must_use]
+    pub fn code(&self) -> u32 {
+        match self {
+            Self::ZeroSize => 20001,
+            Self::Mmap(_) => 20002,
+            Self::Mprotect(_) => 20003,
+        }
     }
 }
 
