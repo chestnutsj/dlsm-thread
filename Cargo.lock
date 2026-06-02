@@ -39,7 +39,6 @@ dependencies = [
 [[package]]
 name = "dlsm-sync"
 version = "0.0.1"
-source = "git+https://github.com/chestnutsj/dlsm-sync.git?branch=master#92c24c394158864cdd937d2fb5d4a5cb3caa5690"
 dependencies = [
  "loom",
 ]
